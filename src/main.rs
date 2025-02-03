@@ -1,11 +1,13 @@
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::time::Instant;
+use std::io;
+use coarsetime::Instant;
 use graphics::{clear, rectangle};
 use graphics::math::{add, mul_scalar, Vec2d};
 use piston_window::{PistonWindow, WindowSettings};
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
-
+use std::io::Write;
+use std::fs::OpenOptions;
 
 #[global_allocator]
 static ALLOCATOR: ReportingAllocator = ReportingAllocator;
@@ -14,20 +16,24 @@ struct ReportingAllocator;
 
 unsafe impl GlobalAlloc for ReportingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let start = Instant::now();
+        let start =Instant::now();
+
         let ptr = System.alloc(layout);
         let end = Instant::now();
         let time_taken = end - start;
         let bytes_requested = layout.size();
 
-        eprintln!("{}\t{}", bytes_requested, time_taken.as_nanos());
+        if let Ok(mut file) = OpenOptions::new().append(true).create(true).open("alloc_log.txt") {
+            let _ = writeln!(file, "{}\t{}", bytes_requested, time_taken.as_nanos());
+        }
+
         ptr
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         System.dealloc(ptr, layout);
     }
- }
+}
 
 struct World { //Contains the data that is useful for the lifetime of the program
     current_turn: u64,
@@ -94,7 +100,7 @@ impl World {
         }
     }
 
-    fn remove_shapes(&mut self, n:i32) {
+    fn remove_shapes(&mut self, n: i32) {
         for _ in 0..n.abs() {
             let mut to_delete = None;
             let particle_iter = self.particles
@@ -142,7 +148,7 @@ fn main() {
 
     let mut world = World::new(width, height);
     world.add_shapes(1000);
-    while  let Some(event) = window.next() {
+    while let Some(event) = window.next() {
         world.update();
         window.draw_2d(&event, |ctx, renderer, _device| {
             clear([0.15, 0.17, 0.17, 0.9], renderer);
